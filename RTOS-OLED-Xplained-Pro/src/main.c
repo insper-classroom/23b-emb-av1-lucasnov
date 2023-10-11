@@ -34,12 +34,12 @@
 void btn_init(void);
 void RTT_init(float freqPrescale, uint32_t IrqNPulses, uint32_t rttIRQSource);
 
-/************************************************************************/
+/*******************************************xBtnSemaphore*****************************/
 /* rtos vars                                                            */
 /************************************************************************/
 
-QueueHandle_t filaCoin;
-SemaphoreHandle_t btnSemaforo;
+QueueHandle_t xQueueCoins;
+SemaphoreHandle_t xBtnSemaphore;
 
 /************************************************************************/
 /* RTOS application funcs                                               */
@@ -71,7 +71,7 @@ extern void vApplicationMallocFailedHook(void) {
 /************************************************************************/
 
 void but_callback(void) {
-	xSemaphoreGiveFromISR(btnSemaforo, NULL);
+	xSemaphoreGiveFromISR(xBtnSemaphore, NULL);
 }
 
 void set_buzzer()
@@ -108,21 +108,31 @@ void tone(int freq, int tempo) {
 /************************************************************************/
 
 static void task_coins(void *pvParameters) {
-	int coins;
-	int time;
+    int coins;
+    int time;
 
-	srand(rtt_read_timer_value(RTT)); 
+    srand(rtt_read_timer_value(RTT)); 
+	
+	printf("seed: %d\n", rtt_read_timer_value(RTT));
 
-	while(1){
-		
-	}
+    while (1) {
+        if (xSemaphoreTake(xBtnSemaphore, portMAX_DELAY)) {
+			
+			// valor aleatório entre 1 e 3
+            coins = (rand() % 3) + 1; 
+			
+			 // Envia para a fila
+            xQueueSend(xQueueCoins, &coins, portMAX_DELAY);
+			
+            printf("coins: %d\n", coins);
+        }
+    }
 }
-
 
 static void task_play(void *pvParameters) {
     int coins_to_play;
     while (1) {
-        if (xQueueReceive(filaCoin, &coins_to_play, portMAX_DELAY)) {
+        if (xQueueReceive(xQueueCoins, &coins_to_play, portMAX_DELAY)) {
             int i = 0;
             while (i < coins_to_play) {
                 tone(NOTE_B5, 80);
@@ -247,12 +257,20 @@ int main(void) {
 	btn_init();
 	
 	//inicializa fila e semaforo
-	filaCoin = xQueueCreate(10, sizeof(int));
-	btnSemaforo = xSemaphoreCreateBinary(); 
+	xQueueCoins = xQueueCreate(10, sizeof(int));
+	xBtnSemaphore = xSemaphoreCreateBinary(); 
 	
 	
 	if (xTaskCreate(task_debug, "debug", TASK_OLED_STACK_SIZE, NULL, TASK_OLED_STACK_PRIORITY, NULL) != pdPASS) {
 		printf("Failed to create debug task\r\n");
+	}
+	
+	if (xTaskCreate(task_coins, "coins", TASK_OLED_STACK_SIZE, NULL, TASK_OLED_STACK_PRIORITY, NULL) != pdPASS) {
+		printf("Failed to create coins task\r\n");
+	}
+
+	if (xTaskCreate(task_play, "play", TASK_OLED_STACK_SIZE, NULL, TASK_OLED_STACK_PRIORITY + 1, NULL) != pdPASS) {
+		printf("Failed to create play task\r\n");
 	}
 
 	/* Start the scheduler. */
