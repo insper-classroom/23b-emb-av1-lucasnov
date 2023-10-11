@@ -19,7 +19,13 @@
 #define BTN_PIO_PIN 11
 #define BTN_PIO_PIN_MASK (1 << BTN_PIO_PIN)
 
+#define BUZZER_PIO			PIOD
+#define BUZZER_PIO_ID		ID_PIOD
+#define BUZZER_PIO_IDX		27
+#define BUZZER_PIO_IDX_MASK	(1 << BUZZER_PIO_IDX)
 
+#define NOTE_B5 988
+#define NOTE_E6 1319
 
 /************************************************************************/
 /* prototypes and types                                                 */
@@ -32,6 +38,8 @@ void RTT_init(float freqPrescale, uint32_t IrqNPulses, uint32_t rttIRQSource);
 /* rtos vars                                                            */
 /************************************************************************/
 
+QueueHandle_t filaCoin;
+SemaphoreHandle_t btnSemaforo;
 
 /************************************************************************/
 /* RTOS application funcs                                               */
@@ -63,13 +71,69 @@ extern void vApplicationMallocFailedHook(void) {
 /************************************************************************/
 
 void but_callback(void) {
-
+	xSemaphoreGiveFromISR(btnSemaforo, NULL);
 }
 
+void set_buzzer()
+{
+	pio_set(BUZZER_PIO, BUZZER_PIO_IDX_MASK);
+}
+
+void clear_buzzer()
+{
+	pio_clear(BUZZER_PIO, BUZZER_PIO_IDX_MASK);
+}
+
+
+void buzzer_test(int freq)
+{
+	set_buzzer();
+	delay_us(freq);
+	clear_buzzer();
+	delay_us(freq);
+}
+
+void tone(int freq, int tempo) {
+	
+	int tempo_t = (1000000/freq);
+	int periodo = (tempo*1000) / (2*tempo_t);
+	
+	for (int i = 0; i<periodo; i++){
+		buzzer_test(tempo_t);
+	}
+}
 
 /************************************************************************/
 /* TASKS                                                                */
 /************************************************************************/
+
+static void task_coins(void *pvParameters) {
+	int coins;
+	int time;
+
+	srand(rtt_read_timer_value(RTT)); 
+
+	while(1){
+		
+	}
+}
+
+
+static void task_play(void *pvParameters) {
+    int coins_to_play;
+    while (1) {
+        if (xQueueReceive(filaCoin, &coins_to_play, portMAX_DELAY)) {
+            int i = 0;
+            while (i < coins_to_play) {
+                tone(NOTE_B5, 80);
+                vTaskDelay(20);
+                tone(NOTE_E6, 640);
+                vTaskDelay(20);
+                i++;
+            }
+        }
+    }
+}
 
 
 static void task_debug(void *pvParameters) {
@@ -83,8 +147,6 @@ static void task_debug(void *pvParameters) {
 
 	}
 }
-
-
 
 /************************************************************************/
 /* funcoes                                                              */
@@ -117,7 +179,6 @@ void btn_init(void) {
 	NVIC_EnableIRQ(BTN_PIO_ID);
 	NVIC_SetPriority(BTN_PIO_ID, 4); // Prioridade 4
 }
-
 
 void RTT_init(float freqPrescale, uint32_t IrqNPulses, uint32_t rttIRQSource) {
 
@@ -162,6 +223,14 @@ static void configure_console(void) {
 	setbuf(stdout, NULL);
 }
 
+void buzzer_init(void) {
+	// configura clock
+	pmc_enable_periph_clk(BUZZER_PIO_ID);
+	
+	//configura pino do buzzer
+	pio_set_output(BUZZER_PIO, BUZZER_PIO_IDX_MASK, 0, 0, 0);
+}
+
 /************************************************************************/
 /* main                                                                 */
 /************************************************************************/
@@ -173,8 +242,16 @@ int main(void) {
 	/* Initialize the console uart */
 	configure_console();
 	
-	if (xTaskCreate(task_debug, "debug", TASK_OLED_STACK_SIZE, NULL,
-	TASK_OLED_STACK_PRIORITY, NULL) != pdPASS) {
+	//inicializa botao e buzzer
+	buzzer_init();
+	btn_init();
+	
+	//inicializa fila e semaforo
+	filaCoin = xQueueCreate(10, sizeof(int));
+	btnSemaforo = xSemaphoreCreateBinary(); 
+	
+	
+	if (xTaskCreate(task_debug, "debug", TASK_OLED_STACK_SIZE, NULL, TASK_OLED_STACK_PRIORITY, NULL) != pdPASS) {
 		printf("Failed to create debug task\r\n");
 	}
 
