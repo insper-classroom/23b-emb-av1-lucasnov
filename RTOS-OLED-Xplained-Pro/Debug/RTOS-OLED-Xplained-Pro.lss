@@ -7666,7 +7666,7 @@ static void task_coins(void *pvParameters) {
   403128:	a902      	add	r1, sp, #8
   40312a:	f841 0d04 	str.w	r0, [r1, #-4]!
 			
-			 // Envia para a fila
+			 // envia para a fila
             xQueueSend(xQueueCoins, &coins, portMAX_DELAY);
   40312e:	4623      	mov	r3, r4
   403130:	f04f 32ff 	mov.w	r2, #4294967295
@@ -7696,10 +7696,10 @@ static void task_coins(void *pvParameters) {
   403174:	00409008 	.word	0x00409008
 
 00403178 <task_debug>:
-            }
         }
     }
 }
+
 
 static void task_debug(void *pvParameters) {
   403178:	b580      	push	{r7, lr}

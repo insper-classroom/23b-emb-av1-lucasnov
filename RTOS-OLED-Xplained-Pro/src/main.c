@@ -121,7 +121,7 @@ static void task_coins(void *pvParameters) {
 			// valor aleatório entre 1 e 3
             coins = (rand() % 3) + 1; 
 			
-			 // Envia para a fila
+			 // envia para a fila
             xQueueSend(xQueueCoins, &coins, portMAX_DELAY);
 			
             printf("coins: %d\n", coins);
